@@ -1,13 +1,71 @@
 [
   {
     "name": "week",
-    "title": "This week",
-    "subtitle": "Optometry Practice for Claude Code: what needs attention, rendered by npm run view",
+    "title": "The week",
+    "subtitle": "Optometry Practice for Claude Code: the book and what wants a decision, rendered by npm run view",
     "sections": [
       {
-        "title": "Needs attention",
-        "note": "TODO(author): point this at the industry's attention view (overdue, stuck, quiet).",
-        "sql": "select 'replace me' as item, 'TODO(author)' as why"
+        "title": "Booked, next 7 days",
+        "note": "UNCONFIRMED rows are tomorrow's no-shows unless someone calls.",
+        "sql": "select to_char(on_date, 'Dy DD Mon') as day, substr(starts_at::text, 1, 5) as at, coalesce(optometrist, 'dispensing') as optometrist, patient, service, coalesce(mbs_item, '') as item, case when status = 'booked' then 'UNCONFIRMED' else status end as state from v_appointments where on_date between current_date and current_date + 7 and status in ('booked', 'confirmed') order by on_date, starts_at"
+      },
+      {
+        "title": "Examinations not finalised",
+        "note": "A consult with no final examination cannot be claimed or defended. Oldest first.",
+        "sql": "select to_char(on_date, 'DD Mon') as consult, days_since || ' days' as age, patient, optometrist, coalesce(exam_ref, ref) as ref, upper(exam_state) as state from v_exams_due order by on_date"
+      },
+      {
+        "title": "Spectacle jobs in flight",
+        "note": "Late jobs are the lab's; uncollected ones are ours.",
+        "sql": "select ref, patient, status, lab, to_char(promised_on, 'DD Mon') as promised, case when days_late > 0 then days_late || ' days late' when days_waiting > 0 then 'waiting ' || days_waiting || ' days' else '' end as state, round(balance_cents / 100.0, 2) as owing from v_jobs where status in ('ordered', 'received', 'ready', 'remake') order by ordered_on"
+      },
+      {
+        "title": "Recalls due, next 14 days or overdue",
+        "sql": "select to_char(due_on, 'DD Mon YYYY') as due, patient, kind as recall, contacts, coalesce(phone, email, '') as contact, case when marketing_opt_in then 'message' else 'call' end as how from v_recalls where due_on <= current_date + 14 and next_appt_on is null order by due_on"
+      }
+    ]
+  },
+  {
+    "name": "clinical",
+    "title": "The clinical record",
+    "subtitle": "Medicare eligibility, prescriptions and recalls, straight off the tables",
+    "sections": [
+      {
+        "title": "Comprehensive consult: when Medicare pays again",
+        "note": "10910 once in 36 months under 65; 10911 once in 12 months at 65 and over. Only consults on this record count.",
+        "sql": "select name as patient, age, routine_item as item, coalesce(last_comprehensive_item || ' on ' || to_char(last_comprehensive_on, 'DD Mon YYYY'), 'none on record') as last, coalesce(to_char(eligible_from, 'DD Mon YYYY'), 'now') as claimable_from from v_medicare_eligibility order by eligible_from nulls first, name"
+      },
+      {
+        "title": "Prescriptions expiring in 60 days, or expired",
+        "sql": "select ref, patient, replace(kind, '_', ' ') as kind, to_char(expires_on, 'DD Mon YYYY') as expires, days_to_expiry as days from v_prescriptions where status = 'active' and days_to_expiry <= 60 and days_to_expiry > -90 order by expires_on"
+      },
+      {
+        "title": "Clinical flags on the book",
+        "sql": "select name as patient, age, concat_ws(', ', case when diabetic then 'diabetic' end, conditions, case when dva_number is not null then 'DVA' end) as flags, to_char(last_exam_on, 'DD Mon YYYY') as last_exam, coalesce(to_char(next_appt_on, 'DD Mon'), 'NOTHING BOOKED') as next from v_patients where status = 'active' and (diabetic or conditions is not null) order by name"
+      }
+    ]
+  },
+  {
+    "name": "money",
+    "title": "The money",
+    "subtitle": "Claims, debtors, takings and stock",
+    "sections": [
+      {
+        "title": "Claims by state",
+        "note": "Ready claims are money in a drawer; lodged claims past three weeks are a query.",
+        "sql": "select funder, status, count(*) as claims, round(sum(amount_cents) / 100.0, 2) as amount, max(coalesce(days_lodged, days_since_service)) || ' days' as oldest, sum(case when status = 'ready' and exam_status <> 'final' then 1 else 0 end) as blocked_by_exam from v_claims where status <> 'paid' group by funder, status order by funder, status"
+      },
+      {
+        "title": "Patients owing",
+        "sql": "select ref, patient, to_char(due_on, 'DD Mon') as due, round(balance_cents / 100.0, 2) as owing, case when days_overdue > 0 then days_overdue || ' days overdue' else 'not yet due' end as state from v_invoices where payer = 'patient' and status = 'sent' and balance_cents > 0 order by days_overdue desc"
+      },
+      {
+        "title": "Invoiced, last 30 days",
+        "sql": "select line, round(sum(takings_cents) / 100.0, 2) as invoiced from v_takings where on_date > current_date - 30 group by line order by invoiced desc"
+      },
+      {
+        "title": "Stock to reorder, or not moving",
+        "sql": "select sku, brand || ' ' || name as item, on_hand, reorder_at, moved_90, age_days || ' days' as age, round(value_cents / 100.0, 2) as at_cost, case when low then 'REORDER' else 'NOT MOVING' end as flag from v_stock where active and (low or (kind = 'frame' and on_hand > 0 and age_days > 365 and moved_90 = 0)) order by flag, sku"
       }
     ]
   }

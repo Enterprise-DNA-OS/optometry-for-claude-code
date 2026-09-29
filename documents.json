@@ -1,11 +1,83 @@
 [
   {
-    "name": "example",
-    "title": "TODO(author): the first document this industry must produce",
-    "for_each": "select gen_random_uuid() as id, 'Example' as name",
+    "name": "invoice",
+    "title": "Tax invoice",
+    "for_each": "select id, ref || ' ' || patient as name from v_invoices where status in ('sent', 'paid')",
     "file": "name",
     "sections": [
-      { "title": "Details", "sql": "select 'replace me' as item, $1::text as record_id" }
+      {
+        "title": "Invoice",
+        "sql": "select i.ref as invoice, p.name as billed_to, i.payer, to_char(i.issued_on, 'DD Mon YYYY') as issued, to_char(i.due_on, 'DD Mon YYYY') as due, coalesce(p.medicare_number, '') as medicare_no from invoices i join patients p on p.id = i.patient_id where i.id = $1"
+      },
+      {
+        "title": "Items",
+        "sql": "select description, coalesce(mbs_item, '') as mbs_item, qty, round(unit_cents / 100.0, 2) as unit, round(qty * unit_cents / 100.0, 2) as amount from invoice_items where invoice_id = $1"
+      },
+      {
+        "title": "Payments and balance",
+        "sql": "select round(total_cents / 100.0, 2) as total, round(paid_cents / 100.0, 2) as paid, round(balance_cents / 100.0, 2) as balance, initcap(status) as status from v_invoices where id = $1"
+      }
+    ]
+  },
+  {
+    "name": "prescription",
+    "title": "Optical prescription",
+    "for_each": "select id, ref || ' ' || patient as name from v_prescriptions where status = 'active'",
+    "file": "name",
+    "sections": [
+      {
+        "title": "Prescription",
+        "note": "Issued under the Optometry Board of Australia guidelines on prescribing optical appliances. A copy supplied after the expiry date is marked EXPIRED.",
+        "sql": "select r.ref, p.name as patient, to_char(p.date_of_birth, 'DD Mon YYYY') as born, case when r.kind = 'contact_lens' then 'Contact lenses' else 'Spectacles' end as for, to_char(r.issued_on, 'DD Mon YYYY') as issued, to_char(r.expires_on, 'DD Mon YYYY') as expires, case when r.expires_on < current_date then 'EXPIRED' else 'current' end as state from prescriptions r join patients p on p.id = r.patient_id where r.id = $1"
+      },
+      {
+        "title": "Lens powers",
+        "sql": "select 'Right' as eye, r_sph as sphere, r_cyl as cylinder, r_axis as axis, r_add as add from prescriptions where id = $1 union all select 'Left', l_sph, l_cyl, l_axis, l_add from prescriptions where id = $1"
+      },
+      {
+        "title": "Details and prescriber",
+        "sql": "select coalesce(r.pd, '') as pd, coalesce(r.lens, '') as lens, coalesce(r.notes, '') as notes, coalesce(o.name, '') as optometrist, coalesce(o.registration_no, '') as registration, coalesce(o.provider_number, '') as provider_no from prescriptions r left join optometrists o on o.id = r.optometrist_id where r.id = $1"
+      }
+    ]
+  },
+  {
+    "name": "gp-report",
+    "title": "Eye examination report to the GP",
+    "for_each": "select e.id, e.ref || ' ' || p.name as name from exams e join patients p on p.id = e.patient_id where e.status = 'final' and not e.imported and (p.diabetic or p.conditions is not null) and e.on_date > current_date - 400",
+    "file": "name",
+    "sections": [
+      {
+        "title": "Patient",
+        "sql": "select p.name as patient, to_char(p.date_of_birth, 'DD Mon YYYY') as born, coalesce(p.medicare_number, '') as medicare_no, concat_ws(', ', case when p.diabetic then 'diabetes' end, p.conditions) as known_conditions from exams e join patients p on p.id = e.patient_id where e.id = $1"
+      },
+      {
+        "title": "Examination",
+        "sql": "select to_char(e.on_date, 'DD Mon YYYY') as date, o.name as optometrist, coalesce(e.mbs_item, '') as item, case when e.dilated then 'yes' else 'no' end as dilated, concat_ws(' / ', e.va_right, e.va_left) as va_r_l, concat_ws(' / ', e.iop_right, e.iop_left) as iop_r_l from exams e join optometrists o on o.id = e.optometrist_id where e.id = $1"
+      },
+      {
+        "title": "Findings and plan",
+        "sql": "select findings, management, case when recall_months is null then '' else 'Review in ' || recall_months || ' months' end as review from exams where id = $1"
+      }
+    ]
+  },
+  {
+    "name": "lab-docket",
+    "title": "Lab order",
+    "for_each": "select id, ref || ' ' || patient as name from v_jobs where status in ('ordered', 'remake')",
+    "file": "name",
+    "sections": [
+      {
+        "title": "Job",
+        "sql": "select j.ref as job, j.lab, j.patient, to_char(j.ordered_on, 'DD Mon YYYY') as ordered, to_char(j.promised_on, 'DD Mon YYYY') as promised, j.status, coalesce(j.remake_reason, '') as remake_reason from v_jobs j where j.id = $1"
+      },
+      {
+        "title": "Frame and lenses",
+        "sql": "select frame, lens_desc as lenses, coalesce(dispenser, '') as dispenser from v_jobs where id = $1"
+      },
+      {
+        "title": "Prescription",
+        "sql": "select 'Right' as eye, r.r_sph as sphere, r.r_cyl as cylinder, r.r_axis as axis, r.r_add as add, r.pd from jobs j join prescriptions r on r.id = j.rx_id where j.id = $1 union all select 'Left', r.l_sph, r.l_cyl, r.l_axis, r.l_add, r.pd from jobs j join prescriptions r on r.id = j.rx_id where j.id = $1"
+      }
     ]
   }
 ]

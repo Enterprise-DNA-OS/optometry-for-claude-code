@@ -13,12 +13,14 @@ That layer used to be the whole product, because talking to a database was hard.
 
 ## What you give up
 
-- **A visual board.** Stages are a table you ask about, not cards you drag.
-- **A phone app.** It runs where Claude Code runs.
-- **A vendor help desk.** This is open source. Enterprise DNA supports the installed version for businesses that want someone to call.
+- **A diary on the front desk screen.** The book is a table you ask about ("who is in tomorrow", "fit Mrs Lowe in on Tuesday"), not a grid you drag appointments across.
+- **Equipment and ePrescribing links.** Optomate talks to some autorefractors, OCTs and to ePrescribing. This does not, out of the box.
+- **Claiming from inside the system.** Claims are tracked here from ready to paid, and lodged through Medicare Online, DVA or HICAPS as they are now.
+- **A patient-facing booking page and a phone app.** It runs where Claude Code runs.
+- **A vendor help desk.** This is open source. Enterprise DNA supports the installed version for practices that want someone to call, and builds any of the above into it.
 
 ## Who this fits
 
-Small teams who already use Claude Code, or who would rather learn to ask than learn another interface. If your team needs a screen to look at all day, keep Optomate. If you need the answers more than the screens, this is cheaper, faster and yours.
+Independent practices with one to five optometrists who already use Claude Code, or who would rather learn to ask than learn another interface. If your front desk needs a screen to look at all day and nobody will build one for you, keep Optomate. If you need the answers more than the screens, this is cheaper, faster and yours.
 
 Installed and run for you: https://enterprisedna.co/omni/instead-of/optomate
